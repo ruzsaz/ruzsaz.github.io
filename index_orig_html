@@ -1,0 +1,437 @@
+<!--
+To change this template, choose Tools | Templates
+and open the template in the editor.
+-->
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>2019-2024 Veszprém</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+		<link rel="stylesheet" href="leaflet.css" />
+
+		<style>
+			html, body {
+				margin: 0px;
+				width: 100%;
+				height: 100%;
+			}
+			#map {
+				width: 100%;
+				height: 100%;
+			}
+
+			.info {
+				padding: 6px 8px;
+				font: 14px/16px Arial, Helvetica, sans-serif;
+				background: white;
+				background: rgba(255,255,255,0.8);
+				box-shadow: 0 0 15px rgba(0,0,0,0.2);
+				border-radius: 5px;
+			}
+                        .leaflet-right .info {
+				pointer-events: none;
+			}
+			.info h4 {
+				margin: 0 0 5px;
+				color: #777;
+			}
+
+			.legend {
+				text-align: left;
+				line-height: 18px;
+				color: #555;
+			}
+			.legend i {
+				width: 18px;
+				height: 18px;
+				float: left;
+				margin-right: 8px;
+				opacity: 0.7;
+			}
+			table,th,td {
+				border: 1px solid black;
+				border-collapse: collapse
+			}
+		</style>
+	</head>
+	<body>
+		<div id="map"></div>
+
+		<script src="js/libs/jquery-1.9.0/jquery.min.js"></script>
+		<script src="js/libs/leaflet-0.4.5/leaflet.js"></script>
+		<script src="js/cvstoarray.js"></script>
+		<script src="map.js"></script>
+		<script src="alap.js"></script>
+		<script>
+
+
+			//$("#map").css("width", $(window).width());
+			//$("#map").css("height", $(window).height());
+
+			var map = L.map('map').setView([46.970, 17.454], 11);
+
+			/*
+			 var cloudmade = L.tileLayer('http://{s}.tile.cloudmade.com/{key}/{styleId}/256/{z}/{x}/{y}.png', {
+			 attribution: 'Map data &copy; 2011 OpenStreetMap contributors, Imagery &copy; 2011 CloudMade',
+			 key: 'BC9A493B41014CAABB98F0471D759707',
+			 styleId: 22677
+			 }).addTo(map);
+			 </b>
+			 */
+
+
+
+			//  L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+			//  L.tileLayer('http://{s}.tile.opencyclemap.org/cycle/{z}/{x}/{y}.png', {attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+			var z = L.tileLayer('http://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+
+			var controlYears = [];
+			var controlShowReszvetel = false;
+			var controlShowBorders = false;
+			var maxValue = 15;
+
+
+
+
+
+			// control that shows state info on hover
+			var info = L.control();
+
+			info.onAdd = function(map) {
+				this._div = L.DomUtil.create('div', 'info');
+				this.update();
+				return this._div;
+			};
+
+			info.update = function(props) {
+				var s = '';
+				if (props) {
+					var d = getData(props.id);                                        
+					s = s + '<b>' + d[0][2] + ' ' + d[0][1] + '.</b>   Átlagos részvétel: ' + szaz2(getValue(d, true)) + ', attitűd: ' + szaz2(getValue(d, false)) + '<br /><br />';
+					s = s + '<table><tr><th></th>';
+					for (var v = 0; v < valasztasok.length; v++) {
+						s = s + '<th>' + valasztasok[v] + '</th>';
+					}
+					s = s + '</tr>';
+
+					// résztvevők
+					s = s + '<tr><td>' + header[3] + '</td>';
+					for (var v = 0; v < valasztasok.length; v++) {
+						s = s + '<td>' + szam(d[v][3]) + '</td>';
+					}
+					s = s + '</tr>';
+
+					// szavazók
+					s = s + '<tr><td>' + header[4] + '</td>';
+					for (var v = 0; v < valasztasok.length; v++) {
+						s = s + '<td>' + szaz(d[v][4] / d[v][3]) + ' (' + szaz2(d[v][4] / d[v][3] - sums[v][4] / sums[v][3]) + ')</td>';
+					}
+					s = s + '</tr>';
+
+					// pártok eredményei
+					for (var i = 5; i < sums[0].length; i++) {
+						s = s + '<tr>';
+						s = s + '<td><b>' + header[i] + '</b></td>';
+						for (var v = 0; v < valasztasok.length; v++) {
+                                                    	const control = [false, false, false, false];
+                                                        control[v] = true;
+                                                        const color = getColorOpacity(getValue(d, false, control), 0.7)
+                                                    
+                                                        console.log(getValue(d, false, control), color)
+                                                        s = s + '<td style="background: ' + color + '">' + szaz(d[v][i] / d[v][4]) + ' (' + szaz2(d[v][i] / d[v][4] - sums[v][i] / sums[v][4]) + ')</td>';
+						}
+						s = s + '</tr>';
+					}
+					s = s + '</table>';
+				} else {
+					s = 'Mutass egy szavazókörre!';
+				}
+				this._div.innerHTML = s;
+
+			};
+
+			info.addTo(map);
+
+			function szam(v) {
+				return (isNaN(parseInt(v))) ? "n.a." : parseInt(v);
+			}
+
+			function szaz(v) {
+				return (isNaN(v)) ? "n.a." : parseInt(1000 * v) / 10 + '%';
+			}
+
+			function szaz2(v) {
+				return (isNaN(v)) ? "n.a." : (v > 0) ? '+' + szaz(v) : szaz(v);
+			}
+
+			// value: 0 és 1 közötti
+			function col(value, sc, ec) {
+				var v = Math.max(Math.min(value, 1), 0);
+				var c = Array(3);
+				for (var i = 0; i < 3; i++) {
+					c[i] = parseInt((1 - v) * sc[i] + v * ec[i]);
+				}
+				return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+			}
+
+			function colOpacity(value, sc, ec, opacity) {
+				var v = Math.max(Math.min(value, 1), 0);
+				var c = Array(3);
+				for (var i = 0; i < 3; i++) {
+					c[i] = parseInt((1 - v) * sc[i] + v * ec[i]);
+				}
+				return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + opacity + ")";
+			}
+
+			// get color depending on population density value
+			function getColor(d) {
+				return d < 0 ? col(-(d * 100 / maxValue), [255, 255, 255], [0, 85, 255]) :
+						  col((d * 100 / maxValue), [255, 255, 255], [250, 90, 0]);
+			}
+                        
+			// get color depending on population density value
+			function getColorOpacity(d, opacity) {
+				return d < 0 ? colOpacity(-(d * 100 / maxValue), [255, 255, 255], [0, 85, 255], opacity) :
+						  colOpacity((d * 100 / maxValue), [255, 255, 255], [250, 90, 0], opacity);
+			}
+                        
+			function getValue(d, reszvetelToShow, years) {
+                                if (years === undefined) {
+                                    years = controlYears;
+                                }
+				var value = 0;
+				if (d.length > 0) {
+					//console.log(d);
+					var divisor = 0;
+					for (var v = 0; v < years.length; v++) {
+						if (years[v] && (!isNaN(parseFloat(d[v][3])))) {
+							divisor++;
+							if (reszvetelToShow) {
+								value = value + (parseFloat(d[v][4]) / parseFloat(d[v][3]) - sums[v][4] / sums[v][3]);
+							} else {
+								value = value - ( - (parseFloat(d[v][7]) ) / parseFloat(d[v][4]) + (sums[v][7]) / sums[v][4]);
+							}
+						}
+					}
+					if (divisor > 0) {
+						value = value / divisor;
+					} else {
+						value = NaN;
+					}
+				}
+				return value;
+			}
+
+
+			function style(feature) {
+				return {
+					weight: 1,
+					opacity: 1,
+					color: '#666',
+					dashArray: '3 2',
+					fillOpacity: 0.7,
+					fillColor: getColor(getValue(getData(feature.properties.id), controlShowReszvetel))
+				};
+			}
+
+			function alapstyle(feature) {
+				return {
+					weight: 2,
+					opacity: controlShowBorders ? 1 : 0,
+					color: 'red',
+					dashArray: '0',
+					fill: false
+				};
+			}
+
+
+			function highlightFeature(e) {
+				var layer = e.target;
+
+				layer.setStyle({
+					weight: 3,
+					color: '#666',
+					dashArray: '',
+					fillOpacity: 0.7
+				});
+
+				if (!L.Browser.ie && !L.Browser.opera) {
+					layer.bringToFront();
+				}
+
+				info.update(layer.feature.properties);
+			}
+
+			var geojson, alapgeojson;
+			var data = loadCSV('szavazat_adat.csv');
+			//var data = loadCSV('data.csv');
+
+			var header = data[0];
+			data.splice(0, 1);
+			var valasztasok = getValasztasok();
+			var sums = getSums();
+
+			function getValasztasok() {
+				var valasztasok = [];
+				for (var i = 0; i < data.length; i++) {
+					var found = false;
+					for (var v = 0; v < valasztasok.length; v++) {
+						if (valasztasok[v] === data[i][0]) {
+							found = true;
+							break;
+						}
+					}
+					if (!found) {
+						valasztasok.push(data[i][0]);
+					}
+				}
+				return valasztasok;
+			}
+
+			function getSums() {
+				// Inicializálás
+				var sums = [];
+				for (var v = 0; v < valasztasok.length; v++) {
+					sums[v] = [];
+					for (var i = 0; i < data[0].length; i++) {
+						sums[v][i] = 0;
+					}
+				}
+				// Feltöltés
+				for (var i = 0; i < data.length; i++) {
+					var valIndex = getValIndex(data[i][0]);
+					for (var p = 3; p < data[0].length; p++) {
+						if (!isNaN(parseFloat(data[i][p]))) {
+							sums[valIndex][p] = sums[valIndex][p] + parseFloat(data[i][p]);
+						}
+					}
+				}
+				return sums;
+			}
+
+			function getValIndex(valasztas) {
+				var valIndex = -1;
+				for (var v = 0; v < valasztasok.length; v++) {
+					if (valasztasok[v] === valasztas) {
+						valIndex = v;
+						break;
+					}
+				}
+				return valIndex;
+			}
+
+			function getData(id) {
+				var returnValue = [];
+				for (var i = 0; i < data.length; i++) {
+					if (id == data[i][1]) {
+						returnValue.push(data[i]);
+					}
+				}
+				return returnValue;
+			}
+
+
+			function resetHighlight(e) {
+				var layer = e.target;
+				geojson.resetStyle(layer);
+				if (!L.Browser.ie && !L.Browser.opera) {
+					layer.bringToBack();
+				}
+				info.update();
+			}
+
+			function zoomToFeature(e) {
+				map.fitBounds(e.target.getBounds());
+			}
+
+			function onEachFeature(feature, layer) {
+				layer.on({
+					mouseover: highlightFeature,
+					mouseout: resetHighlight,
+					click: zoomToFeature
+				});
+			}
+
+			geojson = L.geoJson(statesData, {
+				style: style,
+				onEachFeature: onEachFeature
+			}).addTo(map);
+
+			alapgeojson = L.geoJson(alap, {
+				style: alapstyle
+			}).addTo(map);
+
+
+			
+			map.attributionControl.addAttribution('');
+
+
+			var legend = L.control({position: 'bottomright'});
+
+			legend.onAdd = function(map) {
+
+				var div = L.DomUtil.create('div', 'info legend'),
+						  grades = [-1, -.8, -.6, -.4, -.2, 0, .2, .4, .6, .8, 1],
+						  labels = [],
+						  from, to;
+
+				for (var i = 0; i < grades.length; i++) {
+					from = grades[i];
+					to = grades[i + 1];
+
+					labels.push(
+							  '<i style="background:' + getColor(maxValue * from / 100) + '"></i> ' +
+							  from * maxValue + '%');
+				}
+
+				div.innerHTML = labels.join('<br>');
+				return div;
+			};
+
+			legend.addTo(map);
+
+			var choser = L.control();
+			choser.onAdd = function(map) {
+				this._div = L.DomUtil.create('div', 'info');
+				this.update();
+				return this._div;
+			}
+
+			choser.update = function() {
+				var s = '<form>' +
+						  //'<input type="checkbox" name="korzethatarok" id="korzethatarok" onchange="choserchanged()">Körzethatárok<br>' +
+						  //'<div class="leaflet-control-layers-separator"></div>' +
+						  '<input type="radio" name="mode" id="reszvetel" onchange="choserchanged()">Részvétel<br>' +
+						  '<input type="radio" name="mode" id="baratsagossag" onchange="choserchanged()" checked>Attitűd<br>' +
+						  '<div class="leaflet-control-layers-separator"></div>';
+
+				for (var v = 0; v < valasztasok.length; v++) {
+					s = s + '<input type="checkbox" name="valasztas" id="valasztas' + v + '" onchange="choserchanged()" checked>' + valasztasok[v] + '<br>';
+				}
+
+				s = s + '</form>';
+				this._div.innerHTML = s;
+			}
+
+			choser.setPosition('topleft');
+			choser.addTo(map);
+
+			function choserchanged() {
+				controlShowReszvetel = document.getElementById('reszvetel').checked;
+				controlYears = [];
+				for (var v = 0; v < valasztasok.length; v++) {
+					controlYears.push(document.getElementById('valasztas' + v).checked);
+				}
+				controlShowBorders = false; // document.getElementById('korzethatarok').checked;
+				geojson.setStyle(style);
+				alapgeojson.setStyle(alapstyle);
+			}
+
+			choserchanged();
+			
+		</script>
+	</body>
+</html>

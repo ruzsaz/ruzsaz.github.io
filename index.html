@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>7 vacsora az erdőben</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#60a5fa;--ok:#10b981;--bad:#ef4444;color-scheme:dark}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,#071025 0%,#071a2a 100%);color:#e6eef8}
+    .container{max-width:900px;margin:40px auto;padding:24px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .status{display:flex;gap:12px;align-items:center;font-size:14px;opacity:.95}
+    .btn{background:var(--accent);border:none;padding:8px 12px;border-radius:8px;color:#04263f;font-weight:600;cursor:pointer}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit}
+    .board{display:flex;gap:18px;align-items:center;justify-content:center;padding:18px}
+    .card{width:320px;height:240px;border-radius:12px;background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;border:2px solid transparent;transition:transform .15s,box-shadow .15s,border-color .12s}
+    .card img{max-width:100%;max-height:100%;display:block}
+    .card:hover{transform:translateY(-6px);box-shadow:0 10px 30px rgba(2,6,23,0.6)}
+    .card.disabled{opacity:.5;cursor:default;transform:none}
+    .progress{height:10px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;width:100%}
+    .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#7dd3fc);width:0%;transition:width .35s}
+    .message{margin-top:12px;text-align:center;font-size:15px}
+    .result{padding:12px;border-radius:10px;margin-top:14px;display:none}
+    .result.win{background:linear-gradient(90deg,rgba(16,185,129,0.12),transparent);border:1px solid rgba(16,185,129,0.12);color:var(--ok);display:block}
+    .result.lose{background:linear-gradient(90deg,rgba(239,68,68,0.12),transparent);border:1px solid rgba(239,68,68,0.12);color:var(--bad);display:block}
+    footer{display:flex;justify-content:space-between;align-items:center;margin-top:18px;font-size:13px;opacity:.9}
+    @media (max-width:760px){.board{flex-direction:column}.card{width:92%;height:200px}}
+
+    /* slot groups a card + its caption so caption sits under the card */
+    .slot{display:flex;flex-direction:column;align-items:center;gap:8px}
+    /* caption always reserves space (placeholder) and is outside the card border */
+    .caption{
+      min-height:24px; /* reserves vertical space even when empty */
+      text-align:center;
+      font-size:14px;
+      color:#e6eef8;
+      max-width:320px;
+      width:100%;
+      padding:0 8px;
+      word-break:break-word;
+      box-sizing:border-box;
+    }
+    @media (max-width:760px){
+      .caption{ max-width:92%; }
+    }
+
+  </style>
+</head>
+<body>
+<div class="container" role="main">
+  <header>
+    <h1>Erdei túlélő — 7 éjszaka</h1>
+    <div class="status">
+      <div>Vacsora: <strong id="round">0</strong> az 7-ből</div>
+      <div style="min-width:220px">
+        <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+      </div>
+      <button id="restart" class="btn secondary">Újrakezdés</button>
+    </div>
+  </header>
+
+  <div class="board" id="board" aria-live="polite">
+    <div class="slot">
+      <div class="card" id="left" data-side="left" tabindex="0"></div>
+      <div class="caption" id="left-caption" aria-hidden="true"></div>
+    </div>
+    <div class="slot">
+      <div class="card" id="right" data-side="right" tabindex="0"></div>
+      <div class="caption" id="right-caption" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <div class="message" id="message">Melyiket eszed meg vacsira?</div>
+  <div class="result" id="result"></div>
+
+  <footer>
+    <div>Ruzsa Bence</div>
+    <div id="score">Túlélt éjszakák: 0</div>
+  </footer>
+</div>
+
+<script type="module">
+  const TOTAL_ROUNDS = 7;
+
+  // Place your images under the `images/` folder, e.g. `images/true-1.jpg`, `images/false-1.png`.
+  // Each entry now includes a `name` string stored with the path.
+  const trueFiles = [
+    { src: 'images/eheto/csaszargaloca.jpg', name: 'Császárgalóca' },
+    { src: 'images/eheto/erdei_szömörcsög.jpg', name: 'Erdei szömörcsög' },
+    { src: 'images/eheto/gyapjastintagomba.jpg', name: 'Gyapjas tintagomba' },
+    { src: 'images/eheto/gyűrűs_tuskógomba.jpg', name: 'Gyűrűs tuskógomba' },
+    { src: 'images/eheto/izletes-varganya-90x_588.jpg', name: 'Ízletes vargánya' },
+    { src: 'images/eheto/izletes_rizike.jpg', name: 'Ízletes rizike' },
+    { src: 'images/eheto/lilapereszke.jpg', name: 'Lilapereszke' },
+    { src: 'images/eheto/nagy_őzlábgomba.jpg', name: 'Nagy őzlábgomba' },
+    { src: 'images/eheto/pirulógalóca.jpg', name: 'Piruló galóca' },
+    { src: 'images/eheto/varashátú_galambgomba.jpg', name: 'Varashátú galambgomba' },
+    { src: 'images/eheto/ízletes_csiperke.jpg', name: 'Ízletes csiperke' },
+    { src: 'images/eheto/ízletes_kucsmagomba.jpg', name: 'Ízletes kucsmagomba' },
+    { src: 'images/eheto/sötét_trombitagomba.jpg', name: 'Sötét trombitagomba' }
+  ];
+
+  const falseFiles = [
+    { src: 'images/mergezo/farkastinorú.jpg', name: 'Farkastinorú' },
+    { src: 'images/mergezo/fenyves_turjan.jpg', name: 'Fenyves turjángomba' },
+    { src: 'images/mergezo/gyilkos_galoca.jpg', name: 'Gyilkos galóca' },
+    { src: 'images/mergezo/harkálytintagomba.jpg', name: 'Harkálytintagomba' },
+    { src: 'images/mergezo/kek_pokhalosgomba.webp', name: 'Kék pókhálósgomba' },
+    { src: 'images/mergezo/légyölő_galóca.jpg', name: 'Légyölő galóca' },
+    { src: 'images/mergezo/nagy_döggomba.jpg', name: 'Nagy döggömba' },
+    { src: 'images/mergezo/redős_papsapkagomba.jpg', name: 'Redős papsapkagomba' },
+    { src: 'images/mergezo/retekszagú kígyógomba.jpg', name: 'Retekszagú kígyógomba' },
+    { src: 'images/mergezo/sarga_kenviraggomba01.jpg', name: 'Sárga kénvirággomba' },
+    { src: 'images/mergezo/világító_tölcsérgomba.jpg', name: 'Világító tölcsérgomba' },
+    { src: 'images/mergezo/zöld_harmatgomba.jpg', name: 'Zöld harmatgomba' },
+    { src: 'images/mergezo/áltrifla.jpg', name: 'Rőt áltrifla' }
+  ];
+
+  const leftCaption = document.getElementById('left-caption');
+  const rightCaption = document.getElementById('right-caption');
+
+  // build image objects with ids and names
+  const trueImages = trueFiles.map((p, i) => ({ id: 'T' + (i+1), src: p.src, name: p.name }));
+  const falseImages = falseFiles.map((p, i) => ({ id: 'F' + (i+1), src: p.src, name: p.name }));
+
+  // optional: simple preload to avoid flicker
+  function preloadList(list){
+    list.forEach(item => { const img = new Image(); img.src = item.src; });
+  }
+  preloadList(trueImages);
+  preloadList(falseImages);
+
+  function shuffle(arr){
+    for(let i=arr.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]]=[arr[j],arr[i]];
+    }
+    return arr;
+  }
+
+  let remainingTrue = [];
+  let remainingFalse = [];
+  let currentRound = 0;
+  let correctCount = 0;
+  let locked = false;
+
+  const leftCard = document.getElementById('left');
+  const rightCard = document.getElementById('right');
+  const roundEl = document.getElementById('round');
+  const bar = document.getElementById('bar');
+  const message = document.getElementById('message');
+  const result = document.getElementById('result');
+  const score = document.getElementById('score');
+  const restartBtn = document.getElementById('restart');
+
+  function startGame(){
+    remainingTrue = shuffle([...trueImages]);
+    remainingFalse = shuffle([...falseImages]);
+    currentRound = 0;
+    correctCount = 0;
+    locked = false;
+    result.style.display = 'none';
+    score.textContent = `Túlélt éjszakák: ${correctCount}`;
+
+    // clear any leftover highlight borders and keep captions present but empty
+    leftCard.style.borderColor = 'transparent';
+    rightCard.style.borderColor = 'transparent';
+    leftCaption.textContent = '';
+    rightCaption.textContent = '';
+
+    nextRound();
+  }
+
+  function nextRound(){
+    if(currentRound >= TOTAL_ROUNDS){
+      winGame();
+      return;
+    }
+    currentRound++;
+    roundEl.textContent = currentRound;
+    bar.style.width = `${(currentRound-1)/TOTAL_ROUNDS*100}%`;
+    const t = remainingTrue.pop();
+    const f = remainingFalse.pop();
+    const pair = Math.random() < 0.5 ? [t,f] : [f,t];
+    renderPair(pair[0], pair[1]);
+    locked = false;
+  }
+
+  function renderPair(a,b){
+    leftCard.classList.remove('disabled');
+    rightCard.classList.remove('disabled');
+    leftCard.innerHTML = `<img src="${a.src}" alt="choice A">`;
+    rightCard.innerHTML = `<img src="${b.src}" alt="choice B">`;
+    leftCard.dataset.truth = a.id.startsWith('T') ? 'true' : 'false';
+    rightCard.dataset.truth = b.id.startsWith('T') ? 'true' : 'false';
+    leftCard.dataset.name = a.name;
+    rightCard.dataset.name = b.name;
+
+    // keep captions as placeholders (empty until selection)
+    leftCaption.textContent = '';
+    rightCaption.textContent = '';
+
+    result.style.display = 'none';
+    message.innerHTML = 'Melyiket eszed meg vacsira?';
+  }
+
+  function displayBothNames(){
+    leftCaption.textContent = leftCard.dataset.name || '';
+    rightCaption.textContent = rightCard.dataset.name || '';
+  }
+
+  function handleSelection(cardEl){
+    if(locked) return;
+    locked = true;
+    const chosenIsTrue = cardEl.dataset.truth === 'true';
+
+    // always show both picture names after click
+    displayBothNames();
+
+    if(chosenIsTrue){
+      correctCount++;
+      score.textContent = `Túlélt éjszakák: ${correctCount}`;
+      cardEl.style.borderColor = 'rgba(16,185,129,0.9)';
+      setTimeout(()=>{
+        cardEl.style.borderColor = 'transparent';
+        if(currentRound >= TOTAL_ROUNDS) winGame();
+        else nextRound();
+      }, 3000);
+    } else {
+      cardEl.style.borderColor = 'rgba(239,68,68,0.9)';
+      endGame();
+    }
+  }
+
+  function winGame(){
+    bar.style.width = '100%';
+    result.className = 'result win';
+    result.textContent = `Nyertél! Mind a ${TOTAL_ROUNDS} vacsorát túlélted.`;
+    result.style.display = 'block';
+    message.textContent = 'Gratulálok! A mentőcsapat megérkezett, és kiszabadítottak az erdőből.';
+    locked = true;
+  }
+
+  function endGame(){
+    result.className = 'result lose';
+    result.textContent = `Itt a véged — de legalább ${correctCount} vacsorát túléltél.`;
+    result.style.display = 'block';
+    message.textContent = 'Mérges gombát ettél! Irány a gyomormosás, aztán próbáld újra!';
+  }
+
+  leftCard.addEventListener('click',()=>handleSelection(leftCard));
+  rightCard.addEventListener('click',()=>handleSelection(rightCard));
+
+  leftCard.addEventListener('keydown',(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); handleSelection(leftCard);} });
+  rightCard.addEventListener('keydown',(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); handleSelection(rightCard);} });
+
+  restartBtn.addEventListener('click', startGame);
+
+  startGame();
+</script>
+</body>
+</html>
